@@ -2,7 +2,7 @@
 
 An interactive cricket **market-making simulator**. Watch a T20 chase unfold ball by ball, trade virtual contracts on "chasing team wins", and see how a market maker quotes prices, manages inventory and loses money to informed traders.
 
-**Live demo:** https://YOUR-USERNAME.github.io/ipl-market-maker/
+**Live demo:** https://patilpranjal2431-dev.github.io/ipl-market-maker/
 
 > ⚠️ Educational simulation using **virtual coins only**. No real money, no betting, no payments, and nothing here is betting or financial advice.
 
