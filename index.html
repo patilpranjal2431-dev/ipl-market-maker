@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPL Market Maker: Win Probability Exchange</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;}
+:root{
+  --panel-bg:rgba(14,26,38,.94);--panel-border:#2a4055;--text-primary:#e8edf2;
+  --text-secondary:#a0b3c6;--accent-amber:#ffb347;--accent-green:#3dd68c;
+  --accent-red:#f45b5b;--accent-purple:#b47aff;--led-green:#b3ffb3;--led-amber:#ffd966;
+  --radius:14px;--transition:all .2s ease;
+}
+body{
+  background:radial-gradient(ellipse 70% 30% at 50% 108%,#1f6b3a 0%,#154a2b 45%,transparent 46%),radial-gradient(circle at 12% 8%,rgba(255,236,170,.25),transparent 28%),radial-gradient(circle at 88% 8%,rgba(255,236,170,.25),transparent 28%),linear-gradient(#070d18,#0b1a2a 60%,#0d2a22) fixed;
+  color:var(--text-primary);min-height:100vh;line-height:1.5;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse at 50% 20%,rgba(11,19,32,.6) 0%,rgba(11,19,32,.94) 75%);
+  pointer-events:none;z-index:0;
+}
+#app{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:0 16px 40px;}
+
+/* NAV */
+.navbar{display:flex;align-items:center;justify-content:space-between;padding:12px 0;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--panel-border);margin-bottom:16px;}
+.nav-brand{font-weight:700;font-size:1.1rem;letter-spacing:.5px;color:var(--accent-amber);text-shadow:0 0 12px rgba(255,179,71,.3);}
+.nav-links{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;}
+.nav-links a{color:var(--text-secondary);text-decoration:none;font-size:.85rem;font-weight:500;padding:6px 4px;border-radius:6px;transition:var(--transition);cursor:pointer;white-space:nowrap;}
+.nav-links a:hover,.nav-links a.active{color:var(--accent-amber);background:rgba(255,179,71,.08);}
+.hamburger{display:none;background:none;border:1px solid var(--panel-border);color:var(--text-primary);font-size:1.5rem;padding:4px 12px;border-radius:8px;cursor:pointer;}
+@media(max-width:780px){
+  .nav-links{display:none;width:100%;flex-direction:column;align-items:flex-start;padding:8px 0;}
+  .nav-links.open{display:flex;}
+  .hamburger{display:block;}
+  .nav-links a{font-size:1rem;padding:8px;width:100%;}
+}
+
+/* PANELS */
+.panel{background:var(--panel-bg);backdrop-filter:blur(12px);border:1px solid var(--panel-border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.panel-title{font-size:1.1rem;font-weight:600;color:var(--accent-amber);margin-bottom:12px;letter-spacing:.3px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+@media(max-width:780px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+/* SCOREBOARD */
+.scoreboard-banner{background:#0a0f0f;border:2px solid #1a2a1a;border-radius:10px;padding:12px 16px;font-family:'Courier New',monospace;color:var(--led-green);text-shadow:0 0 8px rgba(179,255,179,.4);letter-spacing:1px;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.led-item{display:flex;flex-direction:column;align-items:flex-start;}
+.led-label{font-size:.6rem;text-transform:uppercase;color:#7a9a7a;letter-spacing:2px;}
+.led-value{font-size:1.1rem;font-weight:700;color:var(--led-amber);}
+.led-value.green{color:var(--led-green);}
+.ball-chips{display:flex;gap:4px;flex-wrap:wrap;}
+.ball-chip{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-size:.75rem;font-weight:700;color:#0a0f0f;background:#6a8a6a;}
+.ball-chip.W{background:var(--accent-red);color:#fff;}
+.ball-chip.c4{background:var(--accent-amber);}
+.ball-chip.c6{background:var(--accent-purple);color:#fff;}
+.ball-chip.c0{background:#3a4a3a;color:#aaa;}
+@keyframes wicketFlash{0%{background:rgba(244,91,91,.6);}100%{background:transparent;}}
+.wicket-flash{animation:wicketFlash .8s ease-out;}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06);}
+th{color:var(--text-secondary);font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;}
+.positive{color:var(--accent-green);}.negative{color:var(--accent-red);}
+
+/* BUTTONS */
+button,.btn{background:rgba(255,179,71,.12);border:1px solid var(--accent-amber);color:var(--accent-amber);padding:8px 18px;border-radius:8px;font-weight:600;font-size:.85rem;cursor:pointer;transition:var(--transition);font-family:inherit;}
+button:hover:not(:disabled),.btn:hover{background:rgba(255,179,71,.25);transform:translateY(-1px);}
+button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+button.primary{background:var(--accent-amber);color:#0b1320;border-color:var(--accent-amber);}
+button.primary:hover{background:#ffc76b;}
+button.danger{border-color:var(--accent-red);color:var(--accent-red);background:rgba(244,91,91,.1);}
+button.success{border-color:var(--accent-green);color:var(--accent-green);background:rgba(61,214,140,.1);}
+button.small{padding:4px 12px;font-size:.75rem;}
+
+input[type=range]{width:100%;accent-color:var(--accent-amber);height:6px;}
+select,input[type=number],input[type=text],textarea{background:#1a2f42;color:var(--text-primary);border:1px solid var(--panel-border);border-radius:6px;padding:4px 8px;font-family:inherit;}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:600;}
+.badge.green{background:rgba(61,214,140,.15);color:var(--accent-green);}
+.badge.amber{background:rgba(255,179,71,.15);color:var(--accent-amber);}
+.badge.red{background:rgba(244,91,91,.15);color:var(--accent-red);}
+.flex-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.text-muted{color:var(--text-secondary);font-size:.82rem;}
+.text-small{font-size:.75rem;}
+.help-icon{position:fixed;bottom:20px;right:20px;background:var(--accent-amber);color:#0b1320;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(255,179,71,.4);z-index:100;border:none;}
+.chart-box{position:relative;height:220px;}
+.screen{display:none;}.screen.active{display:block;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;justify-content:center;align-items:center;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:#0b1320;border:1px solid var(--panel-border);border-radius:var(--radius);padding:24px;max-width:600px;width:100%;max-height:80vh;overflow-y:auto;}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a2f42;color:var(--text-primary);padding:10px 24px;border-radius:24px;border:1px solid var(--panel-border);font-size:.85rem;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+.progress-bar{width:100%;height:6px;background:#1a2f42;border-radius:3px;overflow:hidden;margin:8px 0;}
+.progress-bar .fill{height:100%;background:var(--accent-amber);width:0%;transition:width .2s;}
+.glossary-item{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+.glossary-item strong{color:var(--accent-amber);}
+.tour-highlight{outline:3px solid var(--accent-amber);outline-offset:4px;border-radius:6px;transition:outline .2s;}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- NAV -->
+  <nav class="navbar">
+    <div class="nav-brand">🏏 IPL Market Maker</div>
+    <button class="hamburger" aria-label="Menu" onclick="toggleNav()">☰</button>
+    <div class="nav-links" id="navLinks">
+      <a data-screen="home" class="active" onclick="showScreen('home')">Home</a>
+      <a data-screen="live" onclick="showScreen('live')">Live Match</a>
+      <a data-screen="portfolio" onclick="showScreen('portfolio')">My Portfolio</a>
+      <a data-screen="dashboard" onclick="showScreen('dashboard')">Market Maker Dashboard</a>
+      <a data-screen="lab" onclick="showScreen('lab')">Model Lab</a>
+      <a data-screen="help" onclick="showScreen('help')">Help</a>
+      <a data-screen="about" onclick="showScreen('about')">About</a>
+    </div>
+  </nav>
+
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="panel" style="text-align:center;padding:40px 20px;">
+      <h1 style="font-size:2.2rem;color:var(--accent-amber);margin-bottom:8px;">IPL Market Maker</h1>
+      <p style="font-size:1.1rem;color:var(--text-secondary);max-width:600px;margin:0 auto 20px;">A win-probability exchange for cricket chases. Trade virtual contracts, learn market making, and see how probabilities move ball by ball.</p>
+      <div class="flex-row" style="justify-content:center;margin-bottom:20px;">
+        <div class="badge amber" style="font-size:.9rem;padding:8px 20px;">Balance: <strong id="home-balance">10,000</strong> coins</div>
+      </div>
+      <p class="text-muted" style="margin-bottom:20px;">Buy YES if you think the chasing team will win. Sell if you think they will lose.</p>
+      <div class="flex-row" style="justify-content:center;gap:12px;">
+        <button class="primary" onclick="showScreen('live')">Start Trading</button>
+        <button class="danger" onclick="resetGame()">Reset Game</button>
+      </div>
+      <p class="text-small text-muted" style="margin-top:24px;max-width:500px;margin-left:auto;margin-right:auto;">⚠️ Disclaimer: This is an educational simulation using <strong>virtual coins only</strong>. No real money, no betting, no payments.</p>
+    </div>
+  </div>
+
+  <!-- LIVE MATCH -->
+  <div class="screen" id="screen-live">
+    <div class="scoreboard-banner" id="scoreboard">
+      <div class="led-item"><span class="led-label">Match</span><span class="led-value" id="sb-match">Team A vs Team B</span></div>
+      <div class="led-item"><span class="led-label">Target</span><span class="led-value green" id="sb-target">—</span></div>
+      <div class="led-item"><span class="led-label">Score</span><span class="led-value" id="sb-score">—</span></div>
+      <div class="led-item"><span class="led-label">Overs</span><span class="led-value" id="sb-overs">0.0</span></div>
+      <div class="led-item"><span class="led-label">CRR</span><span class="led-value" id="sb-crr">0.00</span></div>
+      <div class="led-item"><span class="led-label">RRR</span><span class="led-value" id="sb-rrr">0.00</span></div>
+      <div class="led-item"><span class="led-label">Need</span><span class="led-value" id="sb-need">—</span></div>
+      <div class="led-item"><span class="led-label">Balls Left</span><span class="led-value" id="sb-ballsleft">—</span></div>
+      <div class="led-item"><span class="led-label">Last 6</span><div class="ball-chips" id="sb-chips"></div></div>
+    </div>
+
+    <div class="panel" style="padding:12px 16px;">
+      <div class="flex-row">
+        <label>Fixture:</label>
+        <select id="fixture-select">
+          <option value="preset1">Mumbai Lions vs Delhi Chargers</option>
+          <option value="preset2">Chennai Kings vs Kolkata Riders</option>
+          <option value="preset3">Bangalore Blasters vs Hyderabad Hawks</option>
+          <option value="random">Random Match</option>
+        </select>
+        <label>Speed:</label>
+        <select id="speed-select">
+          <option value="step">Step Ball-by-ball</option>
+          <option value="slow">Auto Slow</option>
+          <option value="normal" selected>Auto Normal</option>
+          <option value="fast">Auto Fast</option>
+        </select>
+        <button id="btn-pause" onclick="togglePause()">⏸ Pause</button>
+        <button id="btn-next" onclick="nextBall()">▶ Next Ball</button>
+        <button onclick="startNewMatch()">🔄 New Match</button>
+        <label>Seed:</label><input type="number" id="seed-input" placeholder="random" style="width:90px">
+        <label class="text-small"><input type="checkbox" id="show-true-prob" onchange="updateMarket()"> Show true probability</label>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-title">📊 Market — Chasing Team Wins</div>
+        <div style="text-align:center;margin-bottom:12px;">
+          <div class="text-small text-muted" style="text-transform:uppercase;letter-spacing:1px;">Fair Probability</div>
+          <div style="font-size:3rem;font-weight:800;color:var(--accent-amber);text-shadow:0 0 20px rgba(255,179,71,.3);" id="fair-prob">—</div>
+          <div class="text-small text-muted">(chasing team win probability)</div>
+          <div id="true-prob-display" class="text-small" style="display:none;color:var(--accent-purple);margin-top:4px;"></div>
+        </div>
+        <div class="grid-2" style="margin-bottom:12px;">
+          <div style="text-align:center;background:rgba(61,214,140,.08);border-radius:8px;padding:8px;">
+            <div class="text-small text-muted">BID</div>
+            <div style="font-size:1.8rem;font-weight:700;color:var(--accent-green);" id="bid-price">—</div>
+          </div>
+          <div style="text-align:center;background:rgba(244,91,91,.08);border-radius:8px;padding:8px;">
+            <div class="text-small text-muted">ASK</div>
+            <div style="font-size:1.8rem;font-weight:700;color:var(--accent-red);" id="ask-price">—</div>
+          </div>
+        </div>
+        <div class="flex-row" style="justify-content:space-between;margin-bottom:8px;">
+          <span class="text-small text-muted">Spread: <strong id="spread-width">—</strong> pts</span>
+          <span class="text-small text-muted">Uncertainty: <span class="badge amber" id="uncertainty-meter">—</span></span>
+        </div>
+        <hr style="border-color:var(--panel-border);margin:12px 0;">
+        <div class="flex-row" style="margin-bottom:8px;">
+          <label>Qty:</label>
+          <select id="trade-qty" onchange="updateTradePreview()">
+            <option value="1">1</option>
+            <option value="5" selected>5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input type="number" id="custom-qty" placeholder="Qty" min="1" max="100" value="5" style="width:70px;" onchange="updateTradePreview()">
+        </div>
+        <div class="text-small text-muted" style="margin-bottom:8px;" id="trade-preview">Select quantity and side.</div>
+        <div class="flex-row" style="gap:8px;">
+          <button class="success" style="flex:1;" onclick="placeTrade('buy')">BUY (pay ask)</button>
+          <button class="danger" style="flex:1;" onclick="placeTrade('sell')">SELL (recv bid)</button>
+        </div>
+        <div class="text-small text-muted" style="margin-top:8px;" id="position-info">Position: 0 contracts</div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">📈 Probability Chart</div>
+        <div class="chart-box"><canvas id="probChart"></canvas></div>
+        <div class="flex-row" style="justify-content:center;gap:12px;margin-top:8px;">
+          <span class="text-small"><span style="color:var(--accent-amber);">●</span> Fair</span>
+          <span class="text-small"><span style="color:var(--accent-green);">●</span> Bid</span>
+          <span class="text-small"><span style="color:var(--accent-red);">●</span> Ask</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:8px 16px;">
+      <div class="text-small text-muted" id="commentary">Match ready. Press "Next Ball" to begin.</div>
+    </div>
+
+    <div class="panel" id="result-card" style="display:none;">
+      <div class="panel-title">🏁 Match Result</div>
+      <div class="grid-2">
+        <div>
+          <p>Your P&L: <strong id="result-player-pnl">—</strong></p>
+          <p>Market Maker P&L: <strong id="result-mm-pnl">—</strong></p>
+        </div>
+        <div><p id="result-summary" class="text-small text-muted">—</p></div>
+      </div>
+      <button class="primary" style="margin-top:12px;" onclick="startNewMatch()">Play Next Match</button>
+    </div>
+  </div>
+
+  <!-- PORTFOLIO -->
+  <div class="screen" id="screen-portfolio">
+    <div class="panel">
+      <div class="panel-title">📁 My Portfolio</div>
+      <div class="grid-3" style="margin-bottom:12px;">
+        <div><span class="text-muted text-small">Balance</span><br><strong id="pf-balance">10,000</strong></div>
+        <div><span class="text-muted text-small">Open Position</span><br><strong id="pf-position">0</strong></div>
+        <div><span class="text-muted text-small">Realized P&L</span><br><strong id="pf-realized">0</strong></div>
+        <div><span class="text-muted text-small">Unrealized P&L</span><br><strong id="pf-unrealized">0</strong></div>
+        <div><span class="text-muted text-small">Win Rate</span><br><strong id="pf-winrate">—</strong></div>
+        <div><span class="text-muted text-small">Trades</span><br><strong id="pf-trades">0</strong></div>
+      </div>
+      <div class="panel-title" style="margin-top:16px;">Trade History</div>
+      <div style="overflow-x:auto;">
+        <table id="trade-table">
+          <thead><tr><th>Over.Ball</th><th>Side</th><th>Price</th><th>Qty</th><th>Fair</th><th>Edge</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel-title" style="margin-top:16px;">Equity Curve</div>
+      <div class="chart-box"><canvas id="equityChart"></canvas></div>
+      <div class="panel-title" style="margin-top:16px;">Achievements</div>
+      <div id="badges-container" class="flex-row"></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="screen" id="screen-dashboard">
+    <div class="panel">
+      <div class="panel-title">🤖 Market Maker Dashboard</div>
+      <p class="text-muted text-small">The bot quotes a bid and ask around the fair probability, adjusted for inventory, uncertainty, and recent events.</p>
+      <p class="text-small" style="margin:8px 0;"><strong>mid = fair − k × inventory</strong> &nbsp;|&nbsp; <strong>half-spread = base + a × uncertainty + b × event + c / √(balls_left+1)</strong></p>
+      <p class="text-small"><strong>uncertainty = 4p(1−p)</strong> &nbsp;|&nbsp; <strong>bid = mid − half-spread</strong>, <strong>ask = mid + half-spread</strong> (clipped 1–99)</p>
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <label class="text-small">Base Spread: <span id="lbl-base">1.5</span></label>
+          <input type="range" id="slider-base" min="0.5" max="5" step="0.1" value="1.5">
+          <label class="text-small">a (uncertainty): <span id="lbl-a">6</span></label>
+          <input type="range" id="slider-a" min="0" max="20" step="0.5" value="6">
+          <label class="text-small">b (event bonus): <span id="lbl-b">2</span></label>
+          <input type="range" id="slider-b" min="0" max="10" step="0.5" value="2">
+          <label class="text-small">c (time pressure): <span id="lbl-c">3</span></label>
+          <input type="range" id="slider-c" min="0" max="15" step="0.5" value="3">
+          <label class="text-small">k (inventory skew): <span id="lbl-k">0.02</span></label>
+          <input type="range" id="slider-k" min="0" max="0.1" step="0.005" value="0.02">
+          <label class="text-small">Inventory limit: <span id="lbl-invlimit">50</span></label>
+          <input type="range" id="slider-invlimit" min="10" max="200" step="10" value="50">
+          <div class="flex-row" style="margin-top:8px;">
+            <button class="small" onclick="resetMMDefaults()">Reset Defaults</button>
+            <label class="text-small"><input type="checkbox" id="toggle-noise" checked> Noise</label>
+            <label class="text-small"><input type="checkbox" id="toggle-momentum" checked> Momentum</label>
+            <label class="text-small"><input type="checkbox" id="toggle-informed" checked> Informed</label>
+          </div>
+        </div>
+        <div>
+          <p class="text-small">MM P&L: <strong id="mm-pnl">0</strong></p>
+          <p class="text-small">MM Inventory: <strong id="mm-inventory">0</strong></p>
+          <p class="text-small">Spread captured: <strong id="mm-spread">0</strong> pts</p>
+          <p class="text-small">Loss to informed: <strong id="mm-adverse">0</strong> pts</p>
+          <div class="chart-box"><canvas id="mmPnlChart"></canvas></div>
+          <div class="chart-box"><canvas id="mmInvChart"></canvas></div>
+        </div>
+      </div>
+      <div class="panel-title" style="margin-top:16px;">Bettor P&L</div>
+      <table id="bettor-table">
+        <thead><tr><th>Type</th><th>Trades</th><th>Edge (pts×qty)</th><th>P&amp;L</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODEL LAB -->
+  <div class="screen" id="screen-lab">
+    <div class="panel">
+      <div class="panel-title">🧪 Model Lab</div>
+      <p class="text-small"><strong>Baseline model:</strong> μ(w) = 0.75 + 0.07w, E = balls_left × μ, sd = 1.6√balls_left, p = Φ((E − runs_needed)/sd)</p>
+      <div class="flex-row" style="margin-top:10px;"><label class="text-small">Market maker model:</label><select id="model-select"><option value="baseline">Baseline (normal approx.)</option><option value="logistic">Trained logistic</option></select></div>
+      <div class="panel" style="margin-top:12px;background:rgba(0,0,0,.2);">
+        <div class="panel-title" style="font-size:.9rem;">Load Trained Model (JSON)</div>
+        <textarea id="json-input" rows="3" placeholder='{"intercept": -0.5, "weights": {"runs_needed": -0.02, "balls_left": 0.03, "wickets_in_hand": 0.1, "required_run_rate": -0.05, "current_run_rate": 0.04}}' style="width:100%;font-size:.8rem;"></textarea>
+        <div class="flex-row" style="margin-top:8px;">
+          <button class="small primary" onclick="loadTrainedModel()">Load Model</button>
+          <span id="model-badge" class="badge green" style="display:none;">Using trained model</span>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <div class="panel-title" style="font-size:.9rem;">What-if</div>
+          <label class="text-small">Runs needed: <span id="lbl-whatif-runs">45</span></label>
+          <input type="range" id="whatif-runs" min="0" max="120" value="45" oninput="updateWhatIf()">
+          <label class="text-small">Balls left: <span id="lbl-whatif-balls">30</span></label>
+          <input type="range" id="whatif-balls" min="1" max="120" value="30" oninput="updateWhatIf()">
+          <label class="text-small">Wickets in hand: <span id="lbl-whatif-wkts">7</span></label>
+          <input type="range" id="whatif-wkts" min="0" max="10" value="7" oninput="updateWhatIf()">
+          <p style="margin-top:8px;">Win Probability: <strong id="whatif-prob">—</strong></p>
+          <p class="text-small">Market Quote: <span id="whatif-quote">—</span></p>
+        </div>
+        <div>
+          <div class="panel-title" style="font-size:.9rem;">Calibration (2,000 sims)</div>
+          <div class="chart-box"><canvas id="calibrationChart"></canvas></div>
+          <p class="text-small" id="brier-score">Brier score: —</p>
+          <button class="small" style="margin-top:6px;" onclick="runCalibration()">Run Calibration</button>
+          <div class="progress-bar" id="cal-progress"><div class="fill"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HELP -->
+  <div class="screen" id="screen-help">
+    <div class="panel">
+      <div class="panel-title">❓ Help & Tutorial</div>
+      <p class="text-small text-muted">⚠️ Virtual coins only. No real money.</p>
+      <h3 style="margin:12px 0 6px;font-size:1rem;">How to play (5 steps)</h3>
+      <ol style="padding-left:20px;font-size:.9rem;line-height:1.8;">
+        <li>Choose a fixture and press <strong>Next Ball</strong> to simulate the chase.</li>
+        <li>Watch the <strong>fair probability</strong> — the model's estimate that the chasing team wins.</li>
+        <li>The market maker quotes a <strong>BID</strong> (sell to) and <strong>ASK</strong> (buy from), always around the fair value.</li>
+        <li><strong>Buy</strong> if you think the true probability is higher than the ask; <strong>sell</strong> if lower.</li>
+        <li>Positions settle at 100 (win) or 0 (loss) at the end of the match.</li>
+      </ol>
+      <button class="primary small" style="margin:8px 0;" onclick="startTour()">Start Guided Tour</button>
+
+      <h3 style="margin:16px 0 6px;font-size:1rem;">Glossary</h3>
+      <input type="text" id="glossary-search" placeholder="Search glossary…" oninput="filterGlossary()" style="width:100%;margin-bottom:8px;">
+      <div id="glossary-list">
+        <div class="glossary-item" data-term="win probability"><strong>Win probability</strong> — model estimate that the chasing team wins.</div>
+        <div class="glossary-item" data-term="bid"><strong>Bid</strong> — price at which you can sell a contract.</div>
+        <div class="glossary-item" data-term="ask"><strong>Ask</strong> — price at which you can buy a contract.</div>
+        <div class="glossary-item" data-term="spread"><strong>Spread</strong> — ask minus bid; the market maker's edge.</div>
+        <div class="glossary-item" data-term="market maker"><strong>Market maker</strong> — bot quoting both sides to earn the spread.</div>
+        <div class="glossary-item" data-term="inventory"><strong>Inventory</strong> — net contracts the market maker holds.</div>
+        <div class="glossary-item" data-term="mark to market"><strong>Mark to market</strong> — revaluing positions at current fair price.</div>
+        <div class="glossary-item" data-term="p&l"><strong>P&L</strong> — profit and loss.</div>
+        <div class="glossary-item" data-term="adverse selection"><strong>Adverse selection</strong> — losses to informed traders.</div>
+        <div class="glossary-item" data-term="calibration"><strong>Calibration</strong> — predicted probabilities match observed frequencies.</div>
+        <div class="glossary-item" data-term="brier score"><strong>Brier score</strong> — mean squared error of probability forecasts.</div>
+        <div class="glossary-item" data-term="required run rate"><strong>Required run rate</strong> — runs per over needed to win.</div>
+        <div class="glossary-item" data-term="wickets in hand"><strong>Wickets in hand</strong> — remaining wickets (10 − wickets lost).</div>
+      </div>
+
+      <h3 style="margin:16px 0 6px;font-size:1rem;">FAQ</h3>
+      <p class="text-small"><strong>Is this real money?</strong> No, virtual coins only.</p>
+      <p class="text-small"><strong>Why can't I buy at fair price?</strong> The market maker earns the spread.</p>
+      <p class="text-small"><strong>Why does the spread widen after a wicket?</strong> Uncertainty and event bonus increase, so the bot quotes wider to protect itself.</p>
+      <p class="text-small"><strong>How is my P&L calculated?</strong> Cash changes on trades; open positions are marked to fair value; at settlement contracts pay 100 or 0.</p>
+
+      <h3 style="margin:16px 0 6px;font-size:1rem;">Keyboard Shortcuts</h3>
+            <p class="text-small"><strong>B</strong> buy · <strong>S</strong> sell · <strong>Space</strong> pause/resume · <strong>N</strong> next ball</p>
+    </div>
+  </div>
+
+  <!-- ABOUT -->
+  <div class="screen" id="screen-about">
+    <div class="panel">
+      <div class="panel-title">ℹ️ About</div>
+      <p class="text-muted text-small">IPL Market Maker is an educational simulation of market making and probability modelling for cricket chases. It uses virtual coins only — no real money, no payments, no betting advice.</p>
+      <div class="flex-row" style="margin-top:12px;">
+        <button class="small primary" onclick="runSelfTests()">Run self-tests</button>
+        <div id="selftest-results" class="text-small" style="margin-left:8px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="help-icon" onclick="showScreen('help')" aria-label="Help">?</button>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   0) CONSTANTS
+   ============================================================ */
+const BALLS = 120, WICKETS = 10, MAX_TARGET = 250;
+const START_BALANCE = 10000, POS_LIMIT = 100, MM_LIMIT = 150;
+const OUTCOMES = ['0','1','2','3','4','6','W'];
+const RUNS_OF = [0,1,2,3,4,6,0];
+const BASE_PROBS = [
+  [0.34,0.30,0.08,0.01,0.15,0.08,0.04],
+  [0.36,0.34,0.08,0.01,0.10,0.05,0.06],
+  [0.30,0.27,0.08,0.01,0.13,0.14,0.07]
+];
+
+/* ============================================================
+   1) SEEDED RNG (mulberry32)
+   ============================================================ */
+let _rngState = 0;
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seedRNG(seed){
+  if(seed === null || seed === undefined || seed === '' || isNaN(seed)){
+    seed = Math.floor(Math.random()*2**31);
+  }
+  _rngState = Number(seed) >>> 0;
+  _rand = mulberry32(_rngState);
+  return _rngState;
+}
+let _rand = mulberry32(1);
+function rand(){ return _rand(); }
+
+/* ============================================================
+   2) BALL OUTCOME PROBABILITIES
+   ============================================================ */
+function phaseOf(ballsLeft){
+  const ballIndex = BALLS - ballsLeft;
+  const over = Math.floor(ballIndex / 6);
+  return over < 6 ? 0 : over < 15 ? 1 : 2;
+}
+function ballProbs(phase, wicketsLost, strength){
+  strength = strength || 1.0;
+  const p = BASE_PROBS[phase].slice();
+  if(wicketsLost >= 7){ p[4] *= 0.85; p[5] *= 0.80; p[6] *= 1.15; }
+  p[4] *= strength; p[5] *= strength; p[6] /= strength;
+  const s = p.reduce((a,b)=>a+b,0);
+  return p.map(x=>x/s);
+}
+function sampleOutcome(probs){
+  const u = rand();
+  let c = 0;
+  for(let i=0;i<probs.length;i++){ c += probs[i]; if(u < c) return i; }
+  return probs.length-1;
+}
+
+/* ============================================================
+   3) MATCH SIMULATOR
+   ============================================================ */
+function simulateInnings(strength, seedFn){
+  const save = _rand;
+  if(seedFn) _rand = seedFn;
+  let runs=0, wickets=0; const log=[];
+  for(let b=BALLS;b>=1;b--){
+    if(wickets===10) break;
+    const o = sampleOutcome(ballProbs(phaseOf(b), wickets, strength));
+    runs += RUNS_OF[o];
+    if(o===6) wickets++;
+    log.push({ball: b, over: ((BALLS-b)/6).toFixed(1), outcome: OUTCOMES[o], runs, wickets});
+  }
+  _rand = save;
+  return {score:runs, wickets, ballsUsed: log.length, log};
+}
+
+/* ============================================================
+   4) ORACLE DP (exact win probability)
+   ============================================================ */
+let ORACLE = null;
+function buildOracle(strength){
+  const size = (BALLS+1)*11*(MAX_TARGET+1);
+  const V = new Float32Array(size);
+  const idx = (b,w,r)=> (b*11 + w)*(MAX_TARGET+1) + r;
+  for(let b=1;b<=BALLS;b++){
+    for(let w=0;w<=10;w++){
+      const probs = ballProbs(phaseOf(b), w, strength);
+      for(let r=1;r<=MAX_TARGET;r++){
+        let s = 0;
+        for(let o=0;o<7;o++){
+          const w2 = w + (o===6?1:0);
+          const r2 = r - RUNS_OF[o];
+          if(r2 <= 0){ s += probs[o]*1; }
+          else if(w2 >= 10) { /* 0 */ }
+          else { s += probs[o]*V[idx(b-1,w2,r2)]; }
+        }
+        V[idx(b,w,r)] = s;
+      }
+    }
+  }
+  ORACLE = {V, idx, strength};
+}
+function oracleP(b, w, r){
+  if(r <= 0) return 1;
+  if(w >= 10 || b <= 0) return 0;
+  if(!ORACLE) return baselineP({runsNeeded:r, ballsLeft:b, wicketsLost:w, runsScored:0, ballsBowled:0});
+  const rr = Math.min(r, MAX_TARGET);
+  const bb = Math.min(b, BALLS);
+  return ORACLE.V[ORACLE.idx(bb, w, rr)];
+}
+
+/* ============================================================
+   5) WIN-PROBABILITY MODELS
+   ============================================================ */
+function erf(z){
+  const sign = z<0?-1:1; z = Math.abs(z);
+  const t = 1/(1+0.3275911*z);
+  const y = 1 - (((((1.061405429*t - 1.453152027)*t) + 1.421413741)*t - 0.284496736)*t + 0.254829592)*t*Math.exp(-z*z);
+  return sign*y;
+}
+function normalCDF(x){ return 0.5*(1+erf(x/Math.sqrt(2))); }
+
+function baselineP(state){
+  const {runsNeeded, ballsLeft, wicketsLost, runsScored, ballsBowled} = state;
+  if(runsNeeded <= 0) return 1;
+  const wih = 10 - wicketsLost;
+  if(wih === 0 || ballsLeft === 0) return 0;
+  const mu = 0.75 + 0.07*wih;
+  const E = ballsLeft * mu;
+  const sd = 1.6 * Math.sqrt(ballsLeft);
+  let p = normalCDF((E - runsNeeded + 0.5)/sd);
+  return Math.max(0.01, Math.min(0.99, p));
+}
+
+let LOGISTIC_MODEL = null;
+function logisticP(state){
+  if(!LOGISTIC_MODEL) return baselineP(state);
+  const {runsNeeded, ballsLeft, wicketsLost, runsScored, ballsBowled} = state;
+  if(runsNeeded <= 0) return 1;
+  if(wicketsLost >= 10 || ballsLeft === 0) return 0;
+  const wih = 10 - wicketsLost;
+  const crr = ballsBowled > 0 ? runsScored*6/ballsBowled : 0;
+  const rrr = ballsLeft > 0 ? Math.min(runsNeeded*6/ballsLeft, 36) : 36;
+  const x = [runsNeeded, ballsLeft, wih, rrr, crr];
+  const m = LOGISTIC_MODEL;
+  let s = m.intercept;
+  for(let i=0;i<x.length;i++){ s += m.weights[i] * ((x[i]-m.mean[i])/m.std[i]); }
+  const p = 1/(1+Math.exp(-s));
+  return Math.max(0.01, Math.min(0.99, p));
+}
+
+function modelP(state, which){
+  if(which === 'logistic') return logisticP(state);
+  return baselineP(state);
+}
+
+/* ============================================================
+   6) MARKET MAKER
+   ============================================================ */
+let mmParams = {h0:1.0, a:3.0, b:1.5, c:2.0, k0:0.05, Qmax:MM_LIMIT};
+function quote(state, params, model){
+  params = params || mmParams;
+  const p = modelP(state, model||'baseline');
+  const {ballsLeft} = state;
+  const u = 4*p*(1-p);
+  const recentEvent = (state.recentEvent || 0);
+  let h = params.h0 + params.a*u + params.b*recentEvent + params.c/Math.sqrt(ballsLeft+1);
+  h = Math.max(0.5, Math.min(12, h));
+  const k = params.k0 * (1 + (BALLS - ballsLeft)/BALLS);
+  const q = (state.mmInventory !== undefined) ? state.mmInventory : mm.inventory;
+  let mid = 100*p - k*q;
+  let bid = Math.max(1, Math.min(99, mid - h));
+  let ask = Math.max(1, Math.min(99, mid + h));
+  if(ask - bid < 1){ const c=(bid+ask)/2; bid=c-0.5; ask=c+0.5; }
+  bid = Math.round(bid*10)/10; ask = Math.round(ask*10)/10;
+  let bidDisabled = false, askDisabled = false;
+  if(q >= params.Qmax) bidDisabled = true;
+  if(q <= -params.Qmax) askDisabled = true;
+  if(state.runsNeeded <= 0) { bidDisabled = true; askDisabled = true; }
+  return {bid, ask, halfSpread: h, uncertainty: u, mid, bidDisabled, askDisabled, p};
+}
+
+/* ============================================================
+   7) LEDGER & PARTICIPANTS
+   ============================================================ */
+const player = {cash: START_BALANCE, position: 0, realized: 0, trades: [], matches: [], matchStart: START_BALANCE, matchTrades: []};
+const mm = {cash: 0, inventory: 0, spread: 0, realized: 0, pnlHistory: [], invHistory: []};
+const bettors = {
+  noise:    {cash: START_BALANCE, position: 0, trades: 0, edge: 0},
+  momentum: {cash: START_BALANCE, position: 0, trades: 0, edge: 0},
+  informed: {cash: START_BALANCE, position: 0, trades: 0, edge: 0}
+};
+
+function markToMarket(state){
+  const p = baselineP(state);
+  const eq = player.cash + player.position * 100 * p;
+  return eq;
+}
+
+/* ============================================================
+   8) GAME STATE & LOOP
+   ============================================================ */
+let GAME = {
+  phase: 'SETUP',
+  fixture: 'preset1',
+  teams: ['Team A','Team B'],
+  target: 0,
+  firstInnings: null,
+  chase: null,
+  history: [],
+  timer: null,
+  paused: false,
+  speed: 'normal',
+  lastEvent: 0,
+  commentary: '',
+  seed: null,
+  matchResult: null
+};
+
+const FIXTURES = {
+  preset1: ['Mumbai Lions','Delhi Chargers'],
+  preset2: ['Chennai Kings','Kolkata Riders'],
+  preset3: ['Bangalore Blasters','Hyderabad Hawks']
+};
+
+function startNewMatch(){
+  clearTimers();
+  if(GAME.phase==='CHASE_RUNNING' && player.position!==0){
+    if(!confirm('You have an open position. It will be closed at the current fair value. Continue?')) return;
+    player.cash += player.position*100*baselineP(GAME.chase); player.position = 0;
+  }
+  const fixVal = $('fixture-select').value;
+  GAME.seed = seedRNG($('seed-input').value);
+  let teams;
+  if(fixVal === 'random'){
+    const all = Object.values(FIXTURES).flat();
+    const i = Math.floor(rand()*all.length); let j = Math.floor(rand()*all.length);
+    if(j===i) j = (j+1)%all.length;
+    teams = [all[i], all[j]];
+  } else teams = FIXTURES[fixVal] || ['Team A','Team B'];
+  GAME.teams = teams; GAME.speed = $('speed-select').value;
+  GAME.history = []; GAME.lastEvent = 0; GAME.matchResult = null;
+  const strengthA = 0.9 + rand()*0.2, strengthB = 0.9 + rand()*0.2;
+  const inn1 = simulateInnings(strengthA);
+  GAME.firstInnings = inn1;
+  GAME.target = Math.min(MAX_TARGET, inn1.score + 1);
+  GAME.chase = {runsNeeded: GAME.target, ballsLeft: BALLS, wicketsLost: 0, runsScored: 0,
+    ballsBowled: 0, lastSixBalls: [], strength: strengthB, recentEvent: 0};
+  buildOracle(strengthB);
+  mm.cash = 0; mm.inventory = 0; mm.spread = 0; mm.pnlHistory = []; mm.invHistory = [];
+  ['noise','momentum','informed'].forEach(k=>{ bettors[k] = {cash: START_BALANCE, position: 0, trades: 0, edge: 0}; });
+  player.matchStart = player.cash; player.matchTrades = [];
+  GAME.phase = 'CHASE_RUNNING'; GAME.paused = true;
+  $('result-card').style.display = 'none';
+  initChart(); updateScoreboard(); updateMarket(); updatePortfolio();
+  $('commentary').textContent = `${teams[0]} scored ${inn1.score}/${inn1.wickets}. ${teams[1]} need ${GAME.target} to win. Press Resume to auto-play or Next Ball to step.`;
+  if(player.cash < 100) toast('Balance is very low. You can reset from Home.');
+}
+
+function bowlNextBall(force){
+  if(GAME.phase !== 'CHASE_RUNNING' || !GAME.chase) return;
+  if(GAME.paused && !force) return;
+  const s = GAME.chase;
+  const o = sampleOutcome(ballProbs(phaseOf(s.ballsLeft), s.wicketsLost, s.strength));
+  s.runsScored += RUNS_OF[o]; s.runsNeeded -= RUNS_OF[o];
+  if(o === 6) s.wicketsLost++;
+  s.ballsLeft--; s.ballsBowled++;
+  s.lastSixBalls.push(OUTCOMES[o]); if(s.lastSixBalls.length > 6) s.lastSixBalls.shift();
+  s.recentEvent = o >= 4 ? 1 : 0;
+  const ended = s.runsNeeded <= 0 || s.wicketsLost >= 10 || s.ballsLeft <= 0;
+  if(!ended) runBettors(s);
+  const oP = oracleP(s.ballsLeft, s.wicketsLost, s.runsNeeded);
+  const q = quote(s, mmParams, MM_MODEL);
+  const mmEq = mm.cash + mm.inventory*100*oP;
+  mm.pnlHistory.push({ball: s.ballsBowled, pnl: mmEq});
+  mm.invHistory.push({ball: s.ballsBowled, inv: mm.inventory});
+  GAME.history.push({ball: s.ballsBowled, modelP: q.p, oracleP: oP, bid: q.bid, ask: q.ask,
+    mmInv: mm.inventory, mmPnl: mmEq, equity: markToMarket(s)});
+  updateScoreboard(); updateMarket(); updateChart(); updatePortfolio();
+  const c = $('commentary'), need = `Need ${s.runsNeeded} from ${s.ballsLeft}.`;
+  c.textContent = o===6 ? `WICKET! ${s.wicketsLost} down. ${need}` : o===5 ? `SIX! ${need}` : o===4 ? `FOUR! ${need}` : o===0 ? `Dot ball. ${need}` : `${OUTCOMES[o]} run(s). ${need}`;
+  c.classList.remove('wicket-flash');
+  if(o >= 4){ void c.offsetWidth; c.classList.add('wicket-flash'); }
+  if(ended) settleMatch();
+}
+
+function runBettors(state){
+  const q = quote(state, mmParams, MM_MODEL);
+  const oP = oracleP(state.ballsLeft, state.wicketsLost, state.runsNeeded);
+  const p = baselineP(state);
+  if(document.getElementById('toggle-noise')?.checked && Math.random() < 0.25){
+    const side = Math.random()<0.5?'buy':'sell';
+    const n = 1 + Math.floor(Math.random()*3);
+    executeBettorTrade('noise', side, n, q, p, oP);
+  }
+  if(document.getElementById('toggle-momentum')?.checked){
+    if((state.lastSixBalls.slice(-1)[0]==='4' || state.lastSixBalls.slice(-1)[0]==='6') && Math.random()<0.5){
+      executeBettorTrade('momentum','buy',2,q,p,oP);
+    } else if(state.lastSixBalls.slice(-1)[0]==='W' && Math.random()<0.5){
+      executeBettorTrade('momentum','sell',3,q,p,oP);
+    }
+  }
+  if(document.getElementById('toggle-informed')?.checked){
+    const edgeBuy = 100*oP - q.ask;
+    const edgeSell = q.bid - 100*oP;
+    if(edgeBuy > 3){
+      const n = Math.min(5, Math.floor(edgeBuy));
+      executeBettorTrade('informed','buy',n,q,p,oP);
+    } else if(edgeSell > 3){
+      const n = Math.min(5, Math.floor(edgeSell));
+      executeBettorTrade('informed','sell',n,q,p,oP);
+    }
+  }
+}
+
+function fill(a, side, n, price, qp){
+  if(side==='buy'){ a.cash -= price*n; a.position += n; mm.cash += price*n; mm.inventory -= n; mm.spread += (price-qp)*n; }
+  else { a.cash += price*n; a.position -= n; mm.cash -= price*n; mm.inventory += n; mm.spread += (qp-price)*n; }
+}
+function tradeError(a, side, n, q){
+  if(side==='buy'){
+    if(q.askDisabled) return 'The ask side is closed.';
+    if(a.position + n > POS_LIMIT) return 'Position limit reached.';
+    if(a.cash < q.ask*n) return 'Not enough cash.';
+    if(mm.inventory - n < -mmParams.Qmax) return 'Market maker inventory limit reached.';
+  } else {
+    if(q.bidDisabled) return 'The bid side is closed.';
+    if(a.position - n < -POS_LIMIT) return 'Position limit reached.';
+    if(a.cash < (100-q.bid)*n) return 'Not enough margin to sell.';
+    if(mm.inventory + n > mmParams.Qmax) return 'Market maker inventory limit reached.';
+  }
+  return null;
+}
+function executeBettorTrade(who, side, n, q, p, oP){
+  const b = bettors[who];
+  if(!b || tradeError(b, side, n, q)) return;
+  const price = side==='buy' ? q.ask : q.bid;
+  b.edge += (side==='buy' ? 100*oP - price : price - 100*oP) * n;
+  fill(b, side, n, price, 100*p); b.trades++;
+}
+
+function settleMatch(){
+  clearTimers();
+  GAME.phase = 'SETTLED';
+  const s = GAME.chase, win = s.runsNeeded <= 0, payout = win ? 100 : 0;
+  player.cash += player.position*payout; player.position = 0;
+  const pPnl = player.cash - player.matchStart;
+  player.realized += pPnl; player.matches.push(pPnl);
+  const mmPnl = mm.cash + mm.inventory*payout;
+  mm.cash += mm.inventory*payout; mm.inventory = 0;
+  Object.values(bettors).forEach(b=>{ b.cash += b.position*payout; b.position = 0; });
+  GAME.matchResult = {win, playerPnl: pPnl, mmPnl};
+  $('result-card').style.display = 'block';
+  $('result-player-pnl').textContent = (pPnl>=0?'+':'') + pPnl.toFixed(0);
+  $('result-mm-pnl').textContent = (mmPnl>=0?'+':'') + mmPnl.toFixed(0);
+  $('result-summary').textContent = (win ? 'The chasing team won. ' : 'The chasing team lost. ') + coachingSummary(pPnl);
+  $('home-balance').textContent = player.cash.toFixed(0);
+  $('commentary').textContent = win ? 'Chase complete: the chasing team wins!' : 'Match over: the chasing team falls short.';
+  saveState(); updateScoreboard(); updatePosition(); updatePortfolio();
+}
+
+function coachingSummary(pnl){
+  const tr = player.matchTrades, t = tr.length;
+  if(t===0) return 'You did not trade this match. Try buying when you think the chasing team is undervalued.';
+  const good = tr.filter(x=>x.edge>=3).length;
+  let s = `You made ${t} trade(s) and finished ${pnl>=0?'up':'down'} ${Math.abs(pnl).toFixed(0)} coins. `;
+  s += good/t > 0.5 ? 'Most trades had a real edge. Nice work. ' : 'Many trades had little or negative edge; wait for better prices. ';
+  s += t > 8 ? 'You traded a lot, and every trade pays the spread.' : 'Tip: trade only when you think fair value beats the price by 3+ points.';
+  return s;
+}
+
+function saveState(){ try{ localStorage.setItem('iplmm_v1', JSON.stringify({cash: player.cash, realized: player.realized, matches: player.matches, trades: player.trades.slice(-200)})); }catch(e){} }
+function loadState(){ try{ const d = JSON.parse(localStorage.getItem('iplmm_v1') || 'null'); if(d && typeof d.cash==='number'){ player.cash = d.cash; player.realized = d.realized||0; player.matches = d.matches||[]; player.trades = d.trades||[]; } }catch(e){} }
+
+/* ============================================================
+   9) TRADING (player)
+   ============================================================ */
+function getQty(){
+  const sel = document.getElementById('trade-qty').value;
+  if(sel === 'custom') return Math.max(1, Math.min(100, parseInt(document.getElementById('custom-qty').value)||1));
+  return parseInt(sel);
+}
+function updateTradePreview(){
+  const n = getQty();
+  const s = GAME.chase;
+  if(!s){ document.getElementById('trade-preview').textContent = 'No active match.'; return; }
+  const q = quote(s, mmParams, MM_MODEL);
+  document.getElementById('trade-preview').textContent =
+    `BUY ${n} @ ${q.ask} costs ${(n*q.ask).toFixed(0)} | SELL ${n} @ ${q.bid} recv ${(n*q.bid).toFixed(0)}`;
+}
+function placeTrade(side){
+  if(GAME.phase !== 'CHASE_RUNNING' || !GAME.chase){ toast('No active chase. Start a new match.'); return; }
+  const s = GAME.chase, q = quote(s, mmParams, MM_MODEL), n = getQty();
+  const err = tradeError(player, side, n, q);
+  if(err){ toast(err); return; }
+  const price = side==='buy' ? q.ask : q.bid;
+  const oP = oracleP(s.ballsLeft, s.wicketsLost, s.runsNeeded);
+  const edge = side==='buy' ? 100*oP - price : price - 100*oP;
+  fill(player, side, n, price, 100*q.p);
+  const t = {over: `${Math.floor(s.ballsBowled/6)}.${s.ballsBowled%6}`, side, price, qty: n, fair: 100*q.p, edge};
+  player.trades.push(t); player.matchTrades.push(t);
+  toast(`${side.toUpperCase()} ${n} @ ${price.toFixed(1)}`);
+  updatePosition(); updatePortfolio();
+}
+function updatePosition(){
+  const p = player.position;
+  document.getElementById('position-info').textContent =
+    `Position: ${p} contracts | Cash: ${player.cash.toFixed(0)}`;
+  updateTradePreview();
+}
+
+/* ============================================================
+   10) UI RENDERING
+   ============================================================ */
+function updateScoreboard(){
+  const s = GAME.chase;
+  if(!s) return;
+  document.getElementById('sb-match').textContent = `${GAME.teams[0]} vs ${GAME.teams[1]}`;
+  document.getElementById('sb-target').textContent = GAME.target;
+  document.getElementById('sb-score').textContent = `${s.runsScored}/${s.wicketsLost}`;
+  document.getElementById('sb-overs').textContent = `${Math.floor(s.ballsBowled/6)}.${s.ballsBowled%6}`;
+  const crr = s.ballsBowled>0 ? (s.runsScored*6/s.ballsBowled).toFixed(2) : '0.00';
+  const rrr = s.ballsLeft>0 ? (s.runsNeeded*6/s.ballsLeft).toFixed(2) : '—';
+  document.getElementById('sb-crr').textContent = crr;
+  document.getElementById('sb-rrr').textContent = rrr;
+  document.getElementById('sb-need').textContent = s.runsNeeded;
+  document.getElementById('sb-ballsleft').textContent = s.ballsLeft;
+  const chips = document.getElementById('sb-chips'); chips.innerHTML='';
+  s.lastSixBalls.forEach(b=>{
+    const d = document.createElement('span');
+    d.className = 'ball-chip ' + (b==='W'?'W':b==='4'?'c4':b==='6'?'c6':b==='0'?'c0':'');
+    d.textContent = b; chips.appendChild(d);
+  });
+  document.getElementById('btn-pause').textContent = GAME.paused?'▶ Resume':'⏸ Pause';
+}
+function updateMarket(){
+  const s = GAME.chase;
+  if(!s) return;
+  const q = quote(s, mmParams, MM_MODEL);
+  document.getElementById('fair-prob').textContent = (q.p*100).toFixed(0)+'%';
+  document.getElementById('bid-price').textContent = q.bidDisabled?'—':q.bid.toFixed(1);
+  document.getElementById('ask-price').textContent = q.askDisabled?'—':q.ask.toFixed(1);
+  document.getElementById('spread-width').textContent = (q.ask-q.bid).toFixed(1);
+  document.getElementById('uncertainty-meter').textContent = (q.uncertainty).toFixed(2);
+  const showTrue = document.getElementById('show-true-prob')?.checked;
+  const td = document.getElementById('true-prob-display');
+  if(showTrue){ td.style.display='block';
+    td.textContent = `True (oracle): ${(oracleP(s.ballsLeft,s.wicketsLost,s.runsNeeded)*100).toFixed(1)}%`;
+  } else td.style.display='none';
+  updatePosition();
+}
+function updatePortfolio(){
+  const s = GAME.chase, live = GAME.phase==='CHASE_RUNNING' && s;
+  const p = live ? quote(s, mmParams, MM_MODEL).p : 0;
+  $('pf-balance').textContent = player.cash.toFixed(0);
+  $('pf-position').textContent = player.position;
+  $('pf-realized').textContent = player.realized.toFixed(0);
+  $('pf-unrealized').textContent = live ? (player.cash + player.position*100*p - player.matchStart).toFixed(0) : '0';
+  $('pf-trades').textContent = player.trades.length;
+  const wins = player.matches.filter(x=>x>0).length;
+  $('pf-winrate').textContent = player.matches.length ? (100*wins/player.matches.length).toFixed(0)+'%' : '—';
+  const tbody = document.querySelector('#trade-table tbody'); tbody.innerHTML = '';
+  player.trades.slice().reverse().slice(0,100).forEach(t=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${t.over}</td><td>${t.side}</td><td>${t.price.toFixed(1)}</td><td>${t.qty}</td><td>${t.fair.toFixed(0)}</td><td class="${t.edge>=0?'positive':'negative'}">${t.edge.toFixed(1)}</td>`;
+    tbody.appendChild(tr);
+  });
+  const badges = [];
+  if(player.trades.length>=1) badges.push('First Trade');
+  if(player.trades.length>=5 && player.trades.reduce((a,t)=>a+t.edge,0)/player.trades.length>3) badges.push('Sharp Edge');
+  if(player.matches.length && Math.min(...player.matches)>-1000 && player.cash>=5000) badges.push('Survivor');
+  if(player.matches.filter(x=>x>0).length>=3) badges.push('Hat-trick of Wins');
+  $('badges-container').innerHTML = badges.length ? badges.map(b=>`<span class="badge green">🏅 ${b}</span>`).join('') : '<span class="text-muted">Trade to unlock achievements.</span>';
+  $('mm-pnl').textContent = (mm.cash + mm.inventory*100*p).toFixed(0);
+  $('mm-inventory').textContent = mm.inventory;
+  $('mm-spread').textContent = mm.spread.toFixed(0);
+  $('mm-adverse').textContent = (-bettors.informed.edge).toFixed(0);
+  const btb = document.querySelector('#bettor-table tbody'); btb.innerHTML = '';
+  Object.entries(bettors).forEach(([k,v])=>{
+    const pnl = v.cash + v.position*100*p - START_BALANCE;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td>${v.trades}</td><td>${v.edge.toFixed(0)}</td><td class="${pnl>=0?'positive':'negative'}">${pnl.toFixed(0)}</td>`;
+    btb.appendChild(tr);
+  });
+}
+
+function updateMMCharts(){
+  const mk = (id,label,color)=>{ const c = $(id); if(!c) return null;
+    return new Chart(c, {type:'line', data:{labels:[], datasets:[{label, data:[], borderColor:color, pointRadius:0, tension:.2}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, title:{display:true, text:label, color:'#a0b3c6'}}}}); };
+  if(!mmPnlChart) mmPnlChart = mk('mmPnlChart','Market maker P&L (coins)','#b47aff');
+  if(!mmInvChart) mmInvChart = mk('mmInvChart','Market maker inventory (contracts)','#3dd68c');
+  const setSeries = (ch, arr, key)=>{ if(!ch) return; ch.data.labels = arr.map(x=>x.ball); ch.data.datasets[0].data = arr.map(x=>x[key]); ch.update('none'); };
+  setSeries(mmPnlChart, mm.pnlHistory, 'pnl'); setSeries(mmInvChart, mm.invHistory, 'inv');
+}
+
+/* ============================================================
+   11) CHARTS
+   ============================================================ */
+let probChart=null, equityChart=null, mmPnlChart=null, mmInvChart=null, calChart=null;
+function initChart(){
+  const ctx = document.getElementById('probChart');
+  if(!ctx) return;
+  if(probChart) probChart.destroy();
+  probChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:[], datasets:[
+      {label:'Fair', data:[], borderColor:'#ffb347', tension:.2, pointRadius:0},
+      {label:'Bid', data:[], borderColor:'#3dd68c', tension:.2, pointRadius:0},
+      {label:'Ask', data:[], borderColor:'#f45b5b', tension:.2, pointRadius:0}
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, scales:{y:{min:0,max:100}},
+      plugins:{legend:{display:false}}}
+  });
+  GAME.history = [];
+}
+function updateChart(){
+  if(!probChart) return;
+  const h = GAME.history;
+  probChart.data.labels = h.map(x=>x.ball);
+  probChart.data.datasets[0].data = h.map(x=>x.modelP*100);
+  probChart.data.datasets[1].data = h.map(x=>x.bid);
+  probChart.data.datasets[2].data = h.map(x=>x.ask);
+  probChart.update('none'); updateMMCharts();
+}
+function updateEquityChart(){
+  const ctx = document.getElementById('equityChart'); if(!ctx) return;
+  if(equityChart) equityChart.destroy();
+  const labels = player.matches.map((_,i)=>`M${i+1}`);
+  let eq = START_BALANCE; const data = [eq];
+  player.matches.forEach(p=>{ eq += p; data.push(eq); });
+  equityChart = new Chart(ctx, {type:'line', data:{labels:['Start',...labels],
+    datasets:[{label:'Equity', data, borderColor:'#ffb347', tension:.2, pointRadius:2}]},
+    options:{responsive:true, maintainAspectRatio:false}});
+}
+function renderHistory(){ /* placeholder */ }
+
+/* ============================================================
+   12) NAV & SCREENS
+   ============================================================ */
+function showScreen(name){
+  if(name !== 'live' && GAME.phase==='CHASE_RUNNING'){ GAME.paused = true; clearTimers(); }
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el = $('screen-'+name); if(el) el.classList.add('active');
+  document.querySelectorAll('.nav-links a').forEach(a=>a.classList.toggle('active', a.dataset.screen===name));
+  $('navLinks').classList.remove('open');
+  if(name==='home') $('home-balance').textContent = player.cash.toFixed(0);
+  if(name==='portfolio'){ updatePortfolio(); updateEquityChart(); }
+  if(name==='live'){ if(GAME.phase==='SETUP') startNewMatch(); updateScoreboard(); updateMarket(); }
+  if(name==='dashboard'){ [mmPnlChart,mmInvChart].forEach(c=>c&&c.destroy()); mmPnlChart = mmInvChart = null; updateMMCharts(); updatePortfolio(); }
+  if(name==='lab') updateWhatIf();
+  window.scrollTo(0,0);
+}
+function toggleNav(){ document.getElementById('navLinks').classList.toggle('open'); }
+
+/* ============================================================
+   13) CONTROLS
+   ============================================================ */
+function nextBall(){
+  if(GAME.phase==='SETUP'){ startNewMatch(); return; }
+  if(GAME.phase!=='CHASE_RUNNING'){ toast('Match over. Press New Match or Play Next Match.'); return; }
+  clearTimers(); GAME.paused = true; bowlNextBall(true); updateScoreboard();
+}
+function togglePause(){
+  if(GAME.phase!=='CHASE_RUNNING') return;
+  if(GAME.speed==='step'){ toast('Step mode: use Next Ball (or change the speed).'); return; }
+  GAME.paused = !GAME.paused; updateScoreboard();
+  if(!GAME.paused) scheduleAuto(); else clearTimers();
+}
+function scheduleAuto(){
+  clearTimers();
+  if(GAME.paused || GAME.speed==='step' || GAME.phase!=='CHASE_RUNNING') return;
+  const ms = GAME.speed==='slow'?1200:GAME.speed==='fast'?150:600;
+  GAME.timer = setTimeout(()=>{ bowlNextBall(); if(GAME.phase==='CHASE_RUNNING') scheduleAuto(); }, ms);
+}
+function clearTimers(){ if(GAME.timer){ clearTimeout(GAME.timer); GAME.timer=null; } }
+
+const $ = id => document.getElementById(id);
+let MM_MODEL = 'baseline', _toastT = null, calRunning = false;
+
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(_toastT); _toastT = setTimeout(()=>t.classList.remove('show'), 1800); }
+
+function resetGame(){
+  if(!confirm('Reset game? All progress will be lost.')) return;
+  clearTimers();
+  Object.assign(player, {cash: START_BALANCE, position: 0, realized: 0, trades: [], matches: [], matchStart: START_BALANCE, matchTrades: []});
+  GAME.phase = 'SETUP'; GAME.chase = null; GAME.history = [];
+  mm.cash = 0; mm.inventory = 0; mm.spread = 0; mm.pnlHistory = []; mm.invHistory = [];
+  ['noise','momentum','informed'].forEach(k=>{ bettors[k] = {cash: START_BALANCE, position: 0, trades: 0, edge: 0}; });
+  saveState(); $('result-card').style.display = 'none';
+  updatePortfolio(); toast('Game reset.'); showScreen('home');
+}
+
+const SLIDERS = {'slider-base':['h0','lbl-base'], 'slider-a':['a','lbl-a'], 'slider-b':['b','lbl-b'],
+  'slider-c':['c','lbl-c'], 'slider-k':['k0','lbl-k'], 'slider-invlimit':['Qmax','lbl-invlimit']};
+function readSliders(){
+  for(const id in SLIDERS){ const [k,l] = SLIDERS[id]; const v = parseFloat($(id).value); mmParams[k] = v; $(l).textContent = v; }
+  if(GAME.chase) updateMarket();
+  updateWhatIf();
+}
+function resetMMDefaults(){
+  const d = {'slider-base':1, 'slider-a':3, 'slider-b':1.5, 'slider-c':2, 'slider-k':0.05, 'slider-invlimit':150};
+  for(const id in d) $(id).value = d[id];
+  readSliders();
+}
+
+function setModel(v){
+  if(v==='logistic' && !LOGISTIC_MODEL){ toast('Load a trained model first.'); $('model-select').value = 'baseline'; return; }
+  MM_MODEL = v; $('model-select').value = v;
+  $('model-badge').style.display = v==='logistic' ? 'inline-block' : 'none';
+  if(GAME.chase) updateMarket();
+  updateWhatIf();
+}
+function loadTrainedModel(){
+  try{
+    const j = JSON.parse($('json-input').value);
+    const names = ['runs_needed','balls_left','wickets_in_hand','required_run_rate','current_run_rate'];
+    let w, mean, std;
+    if(Array.isArray(j.weights)){ w = j.weights.map(Number); mean = (j.mean||[0,0,0,0,0]).map(Number); std = (j.std||[1,1,1,1,1]).map(Number); }
+    else { w = names.map(n=>Number(j.weights && j.weights[n])); mean = [0,0,0,0,0]; std = [1,1,1,1,1]; }
+    if(w.length!==5 || w.some(x=>!isFinite(x)) || typeof j.intercept!=='number') throw new Error('need a numeric intercept and 5 numeric weights');
+    if(mean.length!==5 || std.length!==5 || std.some(x=>!(x>0)) || mean.some(x=>!isFinite(x))) throw new Error('mean/std must be 5 numbers with std > 0');
+    LOGISTIC_MODEL = {intercept: j.intercept, weights: w, mean, std};
+    setModel('logistic'); toast('Trained model loaded.');
+  }catch(e){ toast('Invalid model JSON: ' + e.message); }
+}
+
+function updateWhatIf(){
+  if(!$('whatif-runs')) return;
+  const r = +$('whatif-runs').value, b = +$('whatif-balls').value, w = +$('whatif-wkts').value;
+  $('lbl-whatif-runs').textContent = r; $('lbl-whatif-balls').textContent = b; $('lbl-whatif-wkts').textContent = w;
+  const used = BALLS - b;
+  const q = quote({runsNeeded:r, ballsLeft:b, wicketsLost:10-w, runsScored:Math.round(used*1.4), ballsBowled:used, mmInventory:0, recentEvent:0}, mmParams, MM_MODEL);
+  $('whatif-prob').textContent = (q.p*100).toFixed(1) + '%';
+  $('whatif-quote').textContent = (q.bidDisabled || q.askDisabled) ? 'Market closed' : `Bid ${q.bid.toFixed(1)} / Ask ${q.ask.toFixed(1)} (spread ${(q.ask-q.bid).toFixed(1)})`;
+}
+
+function runCalibration(){
+  if(calRunning) return; calRunning = true;
+  const N = 2000, saved = ORACLE;
+  buildOracle(1); const cal = ORACLE; ORACLE = saved;
+  const calOracle = (b,w,r)=> r<=0 ? 1 : (w>=10||b<=0) ? 0 : cal.V[cal.idx(b,w,Math.min(r,MAX_TARGET))];
+  const rng = mulberry32(20240601);
+  const samp = pr=>{ const u = rng(); let c = 0; for(let i=0;i<pr.length;i++){ c += pr[i]; if(u<c) return i; } return pr.length-1; };
+  const models = [['Baseline', baselineP]]; if(LOGISTIC_MODEL) models.push(['Logistic', logisticP]);
+  const acc = models.map(()=>({n:Array(10).fill(0), p:Array(10).fill(0), y:Array(10).fill(0), sq:0, cnt:0}));
+  let oSq = 0, oCnt = 0, done = 0;
+  const bar = document.querySelector('#cal-progress .fill');
+  function oneChase(){
+    let runs = 0, wk = 0;
+    for(let b=BALLS;b>=1 && wk<10;b--){ const o = samp(ballProbs(phaseOf(b), wk, 1)); runs += RUNS_OF[o]; if(o===6) wk++; }
+    const target = Math.min(MAX_TARGET, runs+1);
+    let need = target, w = 0, scored = 0; const recs = [];
+    for(let b=BALLS;b>=1 && w<10 && need>0;b--){
+      const used = BALLS-b;
+      if(used % 3 === 0) recs.push({st:{runsNeeded:need, ballsLeft:b, wicketsLost:w, runsScored:scored, ballsBowled:used}, o:calOracle(b,w,need)});
+      const o = samp(ballProbs(phaseOf(b), w, 1)); need -= RUNS_OF[o]; scored += RUNS_OF[o]; if(o===6) w++;
+    }
+    const y = need<=0 ? 1 : 0;
+    recs.forEach(r=>{
+      models.forEach((m,k)=>{ const p = m[1](r.st), bin = Math.min(9, Math.floor(p*10)), a = acc[k];
+        a.n[bin]++; a.p[bin] += p; a.y[bin] += y; a.sq += (p-y)**2; a.cnt++; });
+      oSq += (r.o-y)**2; oCnt++;
+    });
+  }
+  function chunk(){
+    for(let i=0;i<100 && done<N;i++,done++) oneChase();
+    bar.style.width = (100*done/N) + '%';
+    if(done < N){ setTimeout(chunk, 0); return; }
+    calRunning = false;
+    const colors = ['#ffb347','#b47aff'];
+    const ds = models.map((m,k)=>({label:m[0], backgroundColor:colors[k], borderColor:colors[k],
+      data: acc[k].n.map((n,i)=> n>=30 ? {x:100*acc[k].p[i]/n, y:100*acc[k].y[i]/n} : null).filter(Boolean), pointRadius:5}));
+    ds.push({label:'Perfect', type:'line', data:[{x:0,y:0},{x:100,y:100}], borderColor:'#a0b3c6', borderDash:[6,4], pointRadius:0});
+    if(calChart) calChart.destroy();
+    calChart = new Chart($('calibrationChart'), {type:'scatter', data:{datasets:ds},
+      options:{responsive:true, maintainAspectRatio:false, scales:{x:{min:0,max:100,title:{display:true,text:'Predicted %'}}, y:{min:0,max:100,title:{display:true,text:'Actual win %'}}}}});
+    $('brier-score').textContent = 'Brier score (lower is better): ' + models.map((m,k)=>`${m[0]} ${(acc[k].sq/acc[k].cnt).toFixed(4)}`).join(' | ') + ` | Oracle ${(oSq/oCnt).toFixed(4)}. The oracle gap is the model error that informed traders can exploit.`;
+    toast('Calibration complete.');
+  }
+  $('brier-score').textContent = 'Running…'; bar.style.width = '0%'; chunk();
+}
+
+function startTour(){
+  showScreen('live');
+  const steps = [['#scoreboard','The scoreboard shows the target, score, overs and required run rate.'],
+    ['#fair-prob','Fair probability: the model’s estimate that the chasing team wins.'],
+    ['#bid-price','BID is where you can sell; ASK (right) is where you can buy.'],
+    ['#trade-qty','Choose a quantity, then press BUY or SELL.'],
+    ['#position-info','Your position and cash. Positions settle at 100 (win) or 0 (loss).']];
+  let i = 0, box = $('tour-box');
+  if(!box){ box = document.createElement('div'); box.id = 'tour-box';
+    box.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#0b1320;border:1px solid var(--accent-amber);border-radius:12px;padding:14px 18px;max-width:420px;width:90%;z-index:250;font-size:.9rem;';
+    document.body.appendChild(box); }
+  const clear = ()=>document.querySelectorAll('.tour-highlight').forEach(e=>e.classList.remove('tour-highlight'));
+  const show = ()=>{
+    clear();
+    if(i >= steps.length){ box.style.display = 'none'; return; }
+    const el = document.querySelector(steps[i][0]);
+    if(el){ el.classList.add('tour-highlight'); el.scrollIntoView({block:'center', behavior:'smooth'}); }
+    box.style.display = 'block';
+    box.innerHTML = `<div style="margin-bottom:10px">${steps[i][1]}</div><div class="flex-row"><button class="small primary" id="tour-next">${i===steps.length-1?'Finish':'Next'}</button><button class="small" id="tour-skip">Skip</button><span class="text-small text-muted">${i+1}/${steps.length}</span></div>`;
+    $('tour-next').onclick = ()=>{ i++; show(); }; $('tour-skip').onclick = ()=>{ i = steps.length; show(); };
+  };
+  show();
+}
+
+function filterGlossary(){
+  const q = $('glossary-search').value.toLowerCase().trim();
+  document.querySelectorAll('#glossary-list .glossary-item').forEach(el=>{ el.style.display = (!q || el.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
+}
+
+function runSelfTests(){
+  const out = [], t = (n,f)=>{ let ok = false; try{ ok = !!f(); }catch(e){ ok = false; } out.push([n,ok]); };
+  const saved = ORACLE; buildOracle(1);
+  t('Ball probabilities sum to 1', ()=>{ for(let ph=0;ph<3;ph++) for(let w=0;w<10;w++) for(const s of [0.9,1,1.1]) if(Math.abs(ballProbs(ph,w,s).reduce((a,b)=>a+b,0)-1)>1e-9) return false; return true; });
+  t('Oracle edge cases (won, no balls, all out)', ()=>oracleP(10,3,0)===1 && oracleP(0,3,5)===0 && oracleP(10,10,5)===0);
+  t('Oracle is non-increasing in runs needed and wickets lost', ()=>{ for(const b of [6,30,90]) for(let w=0;w<9;w++) for(let r=1;r<120;r+=7){ if(oracleP(b,w,r+1)>oracleP(b,w,r)+1e-6 || oracleP(b,w+1,r)>oracleP(b,w,r)+1e-6) return false; } return true; });
+  t('Monte Carlo agrees with oracle within 1.5 points', ()=>{
+    const b0 = 30, w0 = 2, r0 = 50, N = 20000, rng = mulberry32(7); let win = 0;
+    for(let i=0;i<N;i++){ let b=b0, w=w0, r=r0;
+      while(b>0 && w<10 && r>0){ const pr = ballProbs(phaseOf(b), w, 1), u = rng(); let c = 0, o = 6; for(let k=0;k<7;k++){ c += pr[k]; if(u<c){ o = k; break; } } r -= RUNS_OF[o]; if(o===6) w++; b--; }
+      if(r<=0) win++; }
+    return Math.abs(win/N - oracleP(b0,w0,r0)) < 0.015; });
+  ORACLE = saved;
+  const st = {runsNeeded:40, ballsLeft:30, wicketsLost:3, runsScored:80, ballsBowled:90, mmInventory:0, recentEvent:0};
+  t('Quotes are valid (bid below ask, both within 1 to 99)', ()=>{ for(const r of [5,30,80,150]) for(const b of [1,20,60,120]) for(const w of [0,5,9]){
+    const q = quote({runsNeeded:r, ballsLeft:b, wicketsLost:w, runsScored:0, ballsBowled:BALLS-b, mmInventory:0, recentEvent:0}, mmParams, 'baseline');
+    if(!(q.bid<q.ask && q.bid>=1 && q.ask<=99)) return false; } return true; });
+  const snap = {...mm};
+  t('Buy then sell loses exactly the spread', ()=>{ const a = {cash:1000, position:0}, q = quote(st, mmParams, 'baseline');
+    fill(a,'buy',3,q.ask,50); fill(a,'sell',3,q.bid,50); return Math.abs(1000 - a.cash - (q.ask-q.bid)*3) < 1e-9; });
+  Object.assign(mm, snap);
+  t('Settlement conserves coins', ()=>{ mm.cash = 0; mm.inventory = 0;
+    const a = {cash:1000, position:0}, b = {cash:1000, position:0}, q = quote(st, mmParams, 'baseline');
+    fill(a,'buy',5,q.ask,50); fill(b,'sell',2,q.bid,50); fill(a,'sell',1,q.bid,50);
+    const pay = 100; a.cash += a.position*pay; b.cash += b.position*pay; mm.cash += mm.inventory*pay;
+    return Math.abs(a.cash + b.cash + mm.cash - 2000) < 1e-9; });
+  Object.assign(mm, snap);
+  $('selftest-results').innerHTML = out.map(([n,ok])=>`<div>${ok?'✅':'❌'} ${n}</div>`).join('') + `<div style="margin-top:6px"><strong>${out.filter(x=>x[1]).length}/${out.length} passed</strong></div>`;
+}
+
+document.addEventListener('keydown', e=>{
+  if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if(!$('screen-live').classList.contains('active')) return;
+  const k = e.key.toLowerCase();
+  if(k==='b') placeTrade('buy'); else if(k==='s') placeTrade('sell'); else if(k==='n') nextBall();
+  else if(e.code==='Space'){ e.preventDefault(); togglePause(); }
+});
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  loadState(); $('home-balance').textContent = player.cash.toFixed(0);
+  Object.keys(SLIDERS).forEach(id=>$(id).addEventListener('input', readSliders));
+  resetMMDefaults();
+  $('speed-select').addEventListener('change', e=>{ GAME.speed = e.target.value; if(GAME.phase==='CHASE_RUNNING'){ clearTimers(); if(!GAME.paused && GAME.speed!=='step') scheduleAuto(); } });
+  $('model-select').addEventListener('change', e=>setModel(e.target.value));
+  const toggleCustom = ()=>{ $('custom-qty').style.display = $('trade-qty').value==='custom' ? '' : 'none'; updateTradePreview(); };
+  $('trade-qty').addEventListener('change', toggleCustom); toggleCustom();
+  updatePortfolio(); updateWhatIf();
+});
+</script>
+</body>
+</html>
